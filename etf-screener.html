@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETF Screener - High Return Below 50 MA</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .controls button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .controls button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .controls button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            flex: 1;
+            color: #666;
+            font-style: italic;
+        }
+
+        .table-wrapper {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .table-wrapper h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .filter-row input, .filter-row select {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            box-sizing: border-box;
+        }
+
+        .filter-row input:focus, .filter-row select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        th {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        th:hover {
+            background-color: #e9ecef;
+        }
+
+        th.sortable::after {
+            content: ' ⇅';
+            opacity: 0.3;
+            font-size: 0.8em;
+        }
+
+        th.sort-asc::after {
+            content: ' ↑';
+            opacity: 1;
+        }
+
+        th.sort-desc::after {
+            content: ' ↓';
+            opacity: 1;
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 800px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: #f8f9fa;
+            z-index: 10;
+        }
+
+        th {
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .positive {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .negative {
+            color: #dc3545;
+            font-weight: 600;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 18px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border: 1px solid #f5c6cb;
+        }
+
+        .symbol {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .metric-label {
+            font-size: 0.85em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 ETF Screener Dashboard</h1>
+        
+        <div class="controls">
+            <button id="loadData" onclick="loadETFData()">Load ETF Data</button>
+            <button id="refreshData" onclick="refreshData()" disabled>Refresh Data</button>
+            <div class="status" id="status">Click "Load ETF Data" to begin (fetches live data from ETFdb.com & Yahoo Finance)</div>
+        </div>
+
+        <div class="table-wrapper">
+            <h2>📊 Top 100 Highest Yielding ETFs</h2>
+            <div class="table-scroll">
+                <div id="table-content">
+                    <div class="loading">Click "Load ETF Data" to view top 100 ETFs</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Popular ETF symbols - top 100 by volume and market cap
+        const TOP_ETFS = [
+            'SPY', 'QQQ', 'IWM', 'EEM', 'VTI', 'EFA', 'GLD', 'HYG', 'LQD', 'AGG',
+            'VOO', 'VEA', 'IEMG', 'IJH', 'VWO', 'SLV', 'TLT', 'IVV', 'BND', 'VTV',
+            'IJR', 'XLF', 'VUG', 'IEFA', 'VIG', 'VB', 'XLE', 'VNQ', 'GDX', 'TIP',
+            'VGT', 'VO', 'BNDX', 'VCIT', 'VYM', 'XLK', 'VCSH', 'XLV', 'XLI', 'XLP',
+            'DIA', 'IWF', 'VT', 'EMB', 'IWD', 'SCHF', 'XLU', 'XLY', 'USMV', 'QUAL',
+            'RSP', 'VBR', 'VXF', 'SCHX', 'IWB', 'MDY', 'VBK', 'ITOT', 'VXUS', 'SCHA',
+            'XLB', 'SCHD', 'VGK', 'IWP', 'SCHE', 'VEU', 'SPDW', 'SPEM', 'DGRO', 'VWO',
+            'IWN', 'VTV', 'XLC', 'MBB', 'GOVT', 'PFF', 'SHY', 'VNQ', 'DVY', 'SDY',
+            'IWS', 'MGC', 'VV', 'IVW', 'MGK', 'SCHG', 'IWR', 'SCHB', 'VBK', 'SLYV',
+            'SPYG', 'IWO', 'VCR', 'VDC', 'SPSM', 'VTIP', 'IEF', 'VHT', 'SPYV', 'SPTM'
+        ];
+
+        let etfData = [];
+        let currentSortColumn = null;
+        let currentSortDirection = 'desc';
+
+        async function loadETFData() {
+            const loadButton = document.getElementById('loadData');
+            const refreshButton = document.getElementById('refreshData');
+            const status = document.getElementById('status');
+            
+            loadButton.disabled = true;
+            status.textContent = 'Loading ETF data... This may take a few moments.';
+            
+            document.getElementById('table-content').innerHTML = '<div class="loading"><div class="spinner"></div>Loading top 100 ETFs...</div>';
+
+            try {
+                // Generate realistic mock data for demonstration
+                etfData = await generateMockETFData();
+                
+                // Display table
+                displayETFTable(etfData);
+                
+                status.textContent = `Data loaded successfully at ${new Date().toLocaleTimeString()}`;
+                refreshButton.disabled = false;
+                loadButton.disabled = false;
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('table-content').innerHTML = `<div class="error">Error loading data: ${error.message}</div>`;
+                status.textContent = 'Error loading data. Please try again.';
+                loadButton.disabled = false;
+            }
+        }
+
+        async function generateMockETFData() {
+            // Fetch live data from the Python API
+            try {
+                const response = await fetch('http://localhost:8000/api/etfs');
+                
+                if (!response.ok) {
+                    throw new Error(`API returned status ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    console.log(`Loaded ${result.count} ETFs from Yahoo Finance`);
+                    return result.data;
+                } else {
+                    throw new Error('Invalid API response format');
+                }
+            } catch (error) {
+                console.error('Error fetching live data:', error);
+                
+                // Show error message with instructions
+                throw new Error(
+                    'Failed to fetch live data from API. ' +
+                    'Please make sure the Python API server is running on port 8000. ' +
+                    'Run: python etf_api.py'
+                );
+            }
+        }
+
+        function displayETFTable(data) {
+            // Sort by return rate (descending) - highest yielding ETFs
+            let sortedData = [...data].sort((a, b) => b.returnRate - a.returnRate).slice(0, 100);
+            
+            let html = `
+                <table id="etfTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="sortTable('index')">#</th>
+                            <th class="sortable" onclick="sortTable('symbol')">Symbol</th>
+                            <th class="sortable" onclick="sortTable('price')">Price</th>
+                            <th class="sortable" onclick="sortTable('ma20')">20-Day MA</th>
+                            <th class="sortable" onclick="sortTable('ma50')">50-Day MA</th>
+                            <th class="sortable" onclick="sortTable('position50')">Position (50MA)</th>
+                            <th class="sortable" onclick="sortTable('position20')">Position (20MA)</th>
+                            <th class="sortable" onclick="sortTable('returnRate')">YTD Return</th>
+                            <th class="sortable" onclick="sortTable('yearReturn')">1Y Return</th>
+                            <th class="sortable" onclick="sortTable('volume')">Volume</th>
+                        </tr>
+                        <tr class="filter-row">
+                            <td></td>
+                            <td><input type="text" id="filter-symbol" placeholder="Filter..." onkeyup="applyFilters()"></td>
+                            <td><input type="text" id="filter-price" placeholder="Min-Max" onkeyup="applyFilters()"></td>
+                            <td></td>
+                            <td></td>
+                            <td>
+                                <select id="filter-position50" onchange="applyFilters()">
+                                    <option value="">All</option>
+                                    <option value="above">Above MA</option>
+                                    <option value="below">Below MA</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select id="filter-position20" onchange="applyFilters()">
+                                    <option value="">All</option>
+                                    <option value="above">Above MA</option>
+                                    <option value="below">Below MA</option>
+                                </select>
+                            </td>
+                            <td><input type="text" id="filter-returnRate" placeholder="Min %" onkeyup="applyFilters()"></td>
+                            <td><input type="text" id="filter-yearReturn" placeholder="Min %" onkeyup="applyFilters()"></td>
+                            <td></td>
+                        </tr>
+                    </thead>
+                    <tbody id="etfTableBody">
+            `;
+            
+            sortedData.forEach((etf, index) => {
+                html += generateTableRow(etf, index);
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('table-content').innerHTML = html;
+            
+            // Store the current data for filtering
+            window.currentDisplayData = sortedData;
+        }
+
+        function generateTableRow(etf, index) {
+            const returnClass = etf.returnRate >= 0 ? 'positive' : 'negative';
+            const yearReturnClass = etf.yearReturn >= 0 ? 'positive' : 'negative';
+            const position50Text = etf.belowMA50 ? 'Below MA' : 'Above MA';
+            const position50Class = etf.belowMA50 ? 'negative' : 'positive';
+            const position20Text = etf.belowMA20 ? 'Below MA' : 'Above MA';
+            const position20Class = etf.belowMA20 ? 'negative' : 'positive';
+            
+            return `
+                <tr data-symbol="${etf.symbol}" 
+                    data-price="${etf.price}" 
+                    data-position50="${etf.belowMA50 ? 'below' : 'above'}"
+                    data-position20="${etf.belowMA20 ? 'below' : 'above'}"
+                    data-returnrate="${etf.returnRate}"
+                    data-yearreturn="${etf.yearReturn}">
+                    <td>${index + 1}</td>
+                    <td class="symbol">${etf.symbol}</td>
+                    <td>$${etf.price.toFixed(2)}</td>
+                    <td>$${etf.ma20.toFixed(2)}</td>
+                    <td>$${etf.ma50.toFixed(2)}</td>
+                    <td class="${position50Class}">${position50Text}</td>
+                    <td class="${position20Class}">${position20Text}</td>
+                    <td class="${returnClass}">${etf.returnRate.toFixed(2)}%</td>
+                    <td class="${yearReturnClass}">${etf.yearReturn.toFixed(2)}%</td>
+                    <td>${formatVolume(etf.volume)}</td>
+                </tr>
+            `;
+        }
+
+        function sortTable(column) {
+            if (!window.currentDisplayData) return;
+            
+            const data = window.currentDisplayData;
+            
+            // Toggle sort direction
+            if (currentSortColumn === column) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortColumn = column;
+                currentSortDirection = 'desc';
+            }
+            
+            // Sort the data
+            data.sort((a, b) => {
+                let valA, valB;
+                
+                switch(column) {
+                    case 'symbol':
+                        valA = a.symbol;
+                        valB = b.symbol;
+                        break;
+                    case 'price':
+                        valA = a.price;
+                        valB = b.price;
+                        break;
+                    case 'ma20':
+                        valA = a.ma20;
+                        valB = b.ma20;
+                        break;
+                    case 'ma50':
+                        valA = a.ma50;
+                        valB = b.ma50;
+                        break;
+                    case 'position50':
+                        valA = a.belowMA50 ? 0 : 1;
+                        valB = b.belowMA50 ? 0 : 1;
+                        break;
+                    case 'position20':
+                        valA = a.belowMA20 ? 0 : 1;
+                        valB = b.belowMA20 ? 0 : 1;
+                        break;
+                    case 'returnRate':
+                        valA = a.returnRate;
+                        valB = b.returnRate;
+                        break;
+                    case 'yearReturn':
+                        valA = a.yearReturn;
+                        valB = b.yearReturn;
+                        break;
+                    case 'volume':
+                        valA = a.volume;
+                        valB = b.volume;
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                if (currentSortDirection === 'asc') {
+                    return valA > valB ? 1 : valA < valB ? -1 : 0;
+                } else {
+                    return valA < valB ? 1 : valA > valB ? -1 : 0;
+                }
+            });
+            
+            // Re-render the table
+            updateTableBody(data);
+            updateSortIndicators(column);
+        }
+
+        function updateTableBody(data) {
+            let html = '';
+            data.forEach((etf, index) => {
+                html += generateTableRow(etf, index);
+            });
+            document.getElementById('etfTableBody').innerHTML = html;
+        }
+
+        function updateSortIndicators(sortedColumn) {
+            // Remove all sort classes
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+            });
+            
+            // Add sort class to the sorted column
+            const headers = document.querySelectorAll('th.sortable');
+            headers.forEach(th => {
+                const onclick = th.getAttribute('onclick');
+                if (onclick && onclick.includes(`'${sortedColumn}'`)) {
+                    th.classList.add(currentSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+        }
+
+        function applyFilters() {
+            const symbolFilter = document.getElementById('filter-symbol')?.value.toLowerCase() || '';
+            const priceFilter = document.getElementById('filter-price')?.value || '';
+            const position50Filter = document.getElementById('filter-position50')?.value || '';
+            const position20Filter = document.getElementById('filter-position20')?.value || '';
+            const returnRateFilter = document.getElementById('filter-returnRate')?.value || '';
+            const yearReturnFilter = document.getElementById('filter-yearReturn')?.value || '';
+            
+            let filtered = [...etfData];
+            
+            // Apply symbol filter
+            if (symbolFilter) {
+                filtered = filtered.filter(etf => etf.symbol.toLowerCase().includes(symbolFilter));
+            }
+            
+            // Apply price range filter
+            if (priceFilter) {
+                const parts = priceFilter.split('-');
+                const minPrice = parseFloat(parts[0]) || 0;
+                const maxPrice = parts.length > 1 ? parseFloat(parts[1]) || Infinity : Infinity;
+                filtered = filtered.filter(etf => etf.price >= minPrice && etf.price <= maxPrice);
+            }
+            
+            // Apply position filters
+            if (position50Filter) {
+                filtered = filtered.filter(etf => 
+                    position50Filter === 'below' ? etf.belowMA50 : !etf.belowMA50
+                );
+            }
+            
+            if (position20Filter) {
+                filtered = filtered.filter(etf => 
+                    position20Filter === 'below' ? etf.belowMA20 : !etf.belowMA20
+                );
+            }
+            
+            // Apply return rate filter
+            if (returnRateFilter) {
+                const minReturn = parseFloat(returnRateFilter);
+                filtered = filtered.filter(etf => etf.returnRate >= minReturn);
+            }
+            
+            // Apply year return filter
+            if (yearReturnFilter) {
+                const minYearReturn = parseFloat(yearReturnFilter);
+                filtered = filtered.filter(etf => etf.yearReturn >= minYearReturn);
+            }
+            
+            // Update display
+            window.currentDisplayData = filtered.slice(0, 100);
+            updateTableBody(window.currentDisplayData);
+        }
+
+        function formatVolume(volume) {
+            if (volume >= 1000000) {
+                return (volume / 1000000).toFixed(2) + 'M';
+            } else if (volume >= 1000) {
+                return (volume / 1000).toFixed(2) + 'K';
+            }
+            return volume.toString();
+        }
+
+        function refreshData() {
+            loadETFData();
+        }
+
+        // Optional: Add keyboard shortcut
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'r' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                refreshData();
+            }
+        });
+    </script>
+</body>
+</html>
+
