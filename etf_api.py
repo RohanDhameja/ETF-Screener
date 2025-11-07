@@ -81,75 +81,88 @@ def get_fallback_etfs():
     ]
 
 
-def fetch_etf_data_from_yfinance(symbol):
-    """Fetch detailed ETF data from Yahoo Finance"""
-    try:
-        ticker = yf.Ticker(symbol)
-        
-        # Get historical data for moving averages
-        hist = ticker.history(period='3mo')
-        
-        if hist.empty or len(hist) < 50:
-            logger.warning(f"Insufficient data for {symbol}")
-            return None
-        
-        # Get current price
-        current_price = hist['Close'].iloc[-1]
-        
-        # Calculate moving averages
-        ma20 = hist['Close'].rolling(window=20).mean().iloc[-1]
-        ma50 = hist['Close'].rolling(window=50).mean().iloc[-1]
-        
-        # Calculate returns
+def fetch_etf_data_from_yfinance(symbol, retries=3):
+    """Fetch detailed ETF data from Yahoo Finance with retry logic"""
+    for attempt in range(retries):
         try:
-            # YTD return (from beginning of current year)
-            year_start = datetime(datetime.now().year, 1, 1)
-            hist_ytd = ticker.history(start=year_start)
-            if not hist_ytd.empty:
-                ytd_return = ((current_price - hist_ytd['Close'].iloc[0]) / hist_ytd['Close'].iloc[0]) * 100
-            else:
+            # Add small delay to avoid rate limiting
+            if attempt > 0:
+                wait_time = (2 ** attempt) * 0.5  # Exponential backoff: 0.5s, 1s, 2s
+                time.sleep(wait_time)
+                logger.info(f"Retry {attempt + 1}/{retries} for {symbol} after {wait_time}s delay")
+            
+            ticker = yf.Ticker(symbol)
+            
+            # Get historical data for moving averages
+            hist = ticker.history(period='3mo')
+            
+            if hist.empty or len(hist) < 50:
+                logger.warning(f"Insufficient data for {symbol}")
+                return None
+            
+            # Get current price
+            current_price = hist['Close'].iloc[-1]
+            
+            # Calculate moving averages
+            ma20 = hist['Close'].rolling(window=20).mean().iloc[-1]
+            ma50 = hist['Close'].rolling(window=50).mean().iloc[-1]
+            
+            # Calculate returns
+            try:
+                # YTD return (from beginning of current year)
+                year_start = datetime(datetime.now().year, 1, 1)
+                hist_ytd = ticker.history(start=year_start)
+                if not hist_ytd.empty:
+                    ytd_return = ((current_price - hist_ytd['Close'].iloc[0]) / hist_ytd['Close'].iloc[0]) * 100
+                else:
+                    ytd_return = 0
+            except:
                 ytd_return = 0
-        except:
-            ytd_return = 0
-        
-        # 1-year return
-        try:
-            one_year_ago = datetime.now() - timedelta(days=365)
-            hist_1y = ticker.history(start=one_year_ago)
-            if not hist_1y.empty and len(hist_1y) > 1:
-                year_return = ((current_price - hist_1y['Close'].iloc[0]) / hist_1y['Close'].iloc[0]) * 100
-            else:
+            
+            # 1-year return
+            try:
+                one_year_ago = datetime.now() - timedelta(days=365)
+                hist_1y = ticker.history(start=one_year_ago)
+                if not hist_1y.empty and len(hist_1y) > 1:
+                    year_return = ((current_price - hist_1y['Close'].iloc[0]) / hist_1y['Close'].iloc[0]) * 100
+                else:
+                    year_return = ytd_return
+            except:
                 year_return = ytd_return
-        except:
-            year_return = ytd_return
+            
+            # Get volume
+            volume = int(hist['Volume'].iloc[-1])
+            
+            # Get info
+            try:
+                info = ticker.info
+                name = info.get('longName', info.get('shortName', f"{symbol} ETF"))
+            except:
+                name = f"{symbol} ETF"
+            
+            return {
+                'symbol': symbol,
+                'name': name,
+                'price': float(current_price),
+                'ma20': float(ma20),
+                'ma50': float(ma50),
+                'returnRate': float(ytd_return),
+                'yearReturn': float(year_return),
+                'volume': volume,
+                'belowMA50': bool(current_price < ma50),
+                'belowMA20': bool(current_price < ma20),
+                'changePercent': float(((current_price - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100) if len(hist) > 1 else 0
+            }
         
-        # Get volume
-        volume = int(hist['Volume'].iloc[-1])
-        
-        # Get info
-        try:
-            info = ticker.info
-            name = info.get('longName', info.get('shortName', f"{symbol} ETF"))
-        except:
-            name = f"{symbol} ETF"
-        
-        return {
-            'symbol': symbol,
-            'name': name,
-            'price': float(current_price),
-            'ma20': float(ma20),
-            'ma50': float(ma50),
-            'returnRate': float(ytd_return),
-            'yearReturn': float(year_return),
-            'volume': volume,
-            'belowMA50': bool(current_price < ma50),
-            'belowMA20': bool(current_price < ma20),
-            'changePercent': float(((current_price - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100) if len(hist) > 1 else 0
-        }
+        except Exception as e:
+            if attempt < retries - 1:
+                logger.warning(f"Attempt {attempt + 1} failed for {symbol}: {str(e)}")
+                continue
+            else:
+                logger.error(f"All retries failed for {symbol}: {str(e)}")
+                return None
     
-    except Exception as e:
-        logger.error(f"Error fetching data for {symbol}: {str(e)}")
-        return None
+    return None
 
 
 @app.route('/api/etfs', methods=['GET'])
@@ -164,8 +177,8 @@ def get_etfs():
     
     etf_data = []
     
-    # Use ThreadPoolExecutor for parallel fetching
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    # Use ThreadPoolExecutor for parallel fetching with reduced workers to avoid rate limiting
+    with ThreadPoolExecutor(max_workers=5) as executor:
         future_to_symbol = {
             executor.submit(fetch_etf_data_from_yfinance, symbol): symbol 
             for symbol in etf_symbols
@@ -178,8 +191,13 @@ def get_etfs():
                 if data:
                     etf_data.append(data)
                     logger.info(f"✓ {symbol}")
+                else:
+                    logger.warning(f"✗ {symbol}: No data returned")
             except Exception as e:
                 logger.error(f"✗ {symbol}: {str(e)}")
+            
+            # Small delay between processing results to avoid overwhelming API
+            time.sleep(0.1)
     
     logger.info(f"Successfully fetched data for {len(etf_data)} ETFs")
     
