@@ -223,11 +223,14 @@ def health_check():
 
 
 if __name__ == '__main__':
+    import os
+    port = int(os.environ.get('PORT', 8000))
+    
     print("=" * 60)
     print("ETF Data API Server")
     print("=" * 60)
     print("Data Sources: ETFdb.com + Yahoo Finance")
-    print("Server starting on http://localhost:8000")
+    print(f"Server starting on port {port}")
     print()
     print("API Endpoints:")
     print("  - GET /api/etfs        - Fetch all ETF data")
@@ -235,4 +238,4 @@ if __name__ == '__main__':
     print("  - GET /api/health      - Health check")
     print("=" * 60)
     print()
-    app.run(debug=True, host='0.0.0.0', port=8000)
+    app.run(debug=False, host='0.0.0.0', port=port)
