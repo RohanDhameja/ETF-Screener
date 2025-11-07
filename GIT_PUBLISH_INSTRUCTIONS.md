@@ -21,7 +21,7 @@ Open Terminal and run these commands:
 
 ```bash
 # Navigate to your project
-cd "/Users/rhuria/ETF search"
+cd "/Users/rdhameja/ETF search"
 
 # Initialize git repository (if not already done)
 git init
@@ -43,12 +43,12 @@ git push -u origin main
 ### Step 3: Update README on GitHub
 
 After pushing, you may want to:
-1. Delete or rename the Salesforce `README.md` 
+1. Delete or rename the `README.md` 
 2. Rename `README_ETF.md` to `README.md`
 
 Run:
 ```bash
-cd "/Users/rhuria/ETF search"
+cd "/Users/rdhameja/ETF search"
 rm README.md
 mv README_ETF.md README.md
 git add .
@@ -66,7 +66,7 @@ git push
 ### Step 2: Create Repository
 1. Open GitHub Desktop
 2. File → Add Local Repository
-3. Choose: `/Users/rhuria/ETF search`
+3. Choose: `/Users/rdhameja/ETF search`
 4. Click "Create Repository"
 
 ### Step 3: Publish
@@ -76,34 +76,6 @@ git push
 4. Click "Publish Repository"
 
 ---
-
-## ⚠️ Important: Clean Up Salesforce Files (Optional)
-
-If you want this repository to be ONLY for the ETF Screener (not Salesforce), consider removing these files before publishing:
-
-```bash
-cd "/Users/rhuria/ETF search"
-
-# Remove Salesforce-specific files
-rm -rf force-app/
-rm -rf scripts/apex/
-rm -rf scripts/soql/
-rm -rf config/
-rm sfdx-project.json
-rm .forceignore
-rm eslint.config.js
-rm jest.config.js
-rm package.json
-
-# Update README
-rm README.md
-mv README_ETF.md README.md
-
-# Commit changes
-git add .
-git commit -m "Remove Salesforce files, ETF Screener only"
-git push
-```
 
 ---
 
@@ -152,12 +124,8 @@ After publishing, consider:
 
 ```bash
 # Navigate to project
-cd "/Users/rhuria/ETF search"
+cd "/Users/rdhameja/ETF search"
 
-# Clean up (optional - removes Salesforce files)
-rm -rf force-app scripts/apex scripts/soql config
-rm sfdx-project.json .forceignore eslint.config.js jest.config.js package.json
-rm README.md && mv README_ETF.md README.md
 
 # Initialize and publish
 git init
