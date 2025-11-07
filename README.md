@@ -6,6 +6,12 @@ A powerful web-based ETF screening tool that fetches **live data** from Yahoo Fi
 ![Flask](https://img.shields.io/badge/Flask-3.0+-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
+## 🌐 Live Demo
+
+**🚀 Try it now:** [https://rohandhameja.github.io/ETF-Screener/](https://rohandhameja.github.io/ETF-Screener/)
+
+**API Backend:** [https://etf-screener.onrender.com](https://etf-screener.onrender.com)
+
 ## 🌟 Features
 
 - ✅ **Live Data**: Real-time ETF data from Yahoo Finance
@@ -27,8 +33,8 @@ A powerful web-based ETF screening tool that fetches **live data** from Yahoo Fi
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/etf-screener.git
-cd etf-screener
+git clone https://github.com/RohanDhameja/ETF-Screener.git
+cd ETF-Screener
 ```
 
 2. **Install dependencies**
